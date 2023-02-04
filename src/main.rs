@@ -1,6 +1,8 @@
+use std::net::TcpListener;
 use zero2prod::serve;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    serve()?.await
+    let listener: TcpListener = TcpListener::bind("127.0.0.1:8000").expect("Failed to bind port");
+    serve(listener)?.await
 }
