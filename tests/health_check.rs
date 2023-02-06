@@ -1,6 +1,8 @@
+use sqlx::{Connection, PgConnection};
 use std::net::TcpListener;
-
 use tokio::spawn;
+use zero2prod::configuration::get_configurations;
+use zero2prod::startup::serve;
 
 #[tokio::test]
 async fn health_check_works() {
@@ -23,6 +25,15 @@ async fn health_check_works() {
 #[tokio::test]
 async fn suscribe_returns_200_for_valid_form_data() {
     let app_address = spawn_app().await;
+    let config = get_configurations().expect("Failed to get config");
+    let connection_string = config.database.connection_string();
+
+    //the `Connection` trait MUST be in scope for us to invoke
+    //`PgConnection::connect` -it is not an inherent method of the struct!
+    let mut connection = PgConnection::connect(&connection_string)
+        .await
+        .expect("Faild to connect to postgres");
+
     let client = reqwest::Client::new();
 
     // Act
@@ -37,7 +48,15 @@ async fn suscribe_returns_200_for_valid_form_data() {
         .expect("Failed to execute request");
 
     //Assert
-    assert_eq!(200, response.status().as_u16())
+    assert_eq!(200, response.status().as_u16());
+
+    let saved = sqlx::query!("SELECT email, name FROM subscriptions",)
+        .fetch_one(&mut connection)
+        .await
+        .expect("Failed to fetch saved subscriptions");
+
+    assert_eq!(saved.email, "ursula_le_guin@gmail.com");
+    assert_eq!(saved.name, "le guin");
 }
 
 #[tokio::test]
@@ -75,7 +94,7 @@ async fn suscribe_returns_400_for_invalid_form_data() {
 async fn spawn_app() -> String {
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
     let port = listener.local_addr().unwrap().port();
-    let server = zero2prod::serve(listener).expect("Faild to bind address");
+    let server = serve(listener).expect("Faild to bind address");
 
     let _ = spawn(server);
 
