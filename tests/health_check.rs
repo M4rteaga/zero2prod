@@ -50,8 +50,8 @@ pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
 
     //Migrate
     let connection_pool = PgPool::connect(&config.connection_string())
-                        .await
-                        .expect("Failed to connect to postgres.");
+        .await
+        .expect("Failed to connect to postgres.");
 
     sqlx::migrate!("./migrations")
         .run(&connection_pool)
