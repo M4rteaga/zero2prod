@@ -15,6 +15,8 @@ if ! [ -x "$(command -v sqlx)" ]; then
   exit 1
 fi
 
+
+
 # Check if a custom user has been set, otherwise default to 'postgres'
 DB_USER="${POSTGRES_USER:=postgres}"
 
@@ -30,16 +32,17 @@ DB_PORT="${POSTGRES_PORT:=5432}"
 # Check if a custom host has been set, otherwise default to 'localhost'
 DB_HOST="${POSTGRES_HOST:=localhost}"
 
+if [ -x "$(command -v podman)" ]; then
 # Allow to skip Porman if a containarized Postgres database is already running
-if [[ -z "${SKIP_PODMAN}" ]]
-then
+  if [[ -z "${SKIP_PODMAN}" ]]
+  then
   # if a postgres container is running, print instructions to kill it and exit
-  RUNNING_POSTGRES_CONTAINER=$(podman ps --filter 'name=postgres' --format '{{.ID}}')
-  if [[ -n $RUNNING_POSTGRES_CONTAINER ]]; then
-    echo >&2 "there is a postgres container already running, kill it with"
-    echo >&2 "    podman kill ${RUNNING_POSTGRES_CONTAINER}"
-    exit 1
-  fi
+    RUNNING_POSTGRES_CONTAINER=$(podman ps --filter 'name=postgres' --format '{{.ID}}')
+    if [[ -n $RUNNING_POSTGRES_CONTAINER ]]; then
+      echo >&2 "there is a postgres container already running, kill it with"
+      echo >&2 "    podman kill ${RUNNING_POSTGRES_CONTAINER}"
+      exit 1
+    fi
   # Launch postgres using Podman
   podman run \
       -e POSTGRES_USER=${DB_USER} \
@@ -50,7 +53,31 @@ then
       --name "postgres_$(date '+%s')" \
       postgres -N 1000
       # ^ Increased maximum number of connections for testing purposes
+  fi
+else
+  # Allow to skip Porman if a containarized Postgres database is already running
+  if [[ -z "${SKIP_DOCKER}" ]]
+  then
+    # if a postgres container is running, print instructions to kill it and exit
+    RUNNING_POSTGRES_CONTAINER=$(docker ps --filter 'name=postgres' --format '{{.ID}}')
+    if [[ -n $RUNNING_POSTGRES_CONTAINER ]]; then
+      echo >&2 "there is a postgres container already running, kill it with"
+      echo >&2 "    docker kill ${RUNNING_POSTGRES_CONTAINER}"
+      exit 1
+    fi
+  # Launch postgres using Podman
+  docker run \
+      -e POSTGRES_USER=${DB_USER} \
+      -e POSTGRES_PASSWORD=${DB_PASSWORD} \
+      -e POSTGRES_DB=${DB_NAME} \
+      -p "${DB_PORT}":5432 \
+      -d \
+      --name "postgres_$(date '+%s')" \
+      postgres -N 1000
+      # ^ Increased maximum number of connections for testing purposes
+  fi
 fi
+
 
 # Keep pinging Postgres until it's ready to accept commands
 until PGPASSWORD="${DB_PASSWORD}" psql -h "${DB_HOST}" -U "${DB_USER}" -p "${DB_PORT}" -d "postgres" -c '\q'; do

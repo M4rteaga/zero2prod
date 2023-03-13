@@ -11,7 +11,7 @@ async fn main() -> std::io::Result<()> {
     init_subscriber(subscriber);
     //set db connection
     let config = get_configurations().expect("Faild to get config");
-    let db_connection_pool = PgPool::connect(&config.database.connection_string().expose_secret())
+    let db_connection_pool = PgPool::connect(config.database.connection_string().expose_secret())
         .await
         .expect("Faild to connect to the database");
     //panic if we cant read configuration
